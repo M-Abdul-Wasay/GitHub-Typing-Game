@@ -145,7 +145,7 @@ body{
   word-break:break-word;
   flex:1;
 }
-.char-untyped{color:var(--dim);}
+.char-untyped{color:var(--muted);}
 .char-correct{color:var(--green);background:var(--green-dim);border-radius:2px;}
 .char-incorrect{color:var(--red);background:var(--red-dim);border-radius:2px;text-decoration:underline;text-decoration-color:var(--red);}
 .char-cursor{position:relative;}
