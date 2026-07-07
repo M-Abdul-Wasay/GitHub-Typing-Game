@@ -304,12 +304,53 @@ function computeCommentFlags(lines){
 // gap, a license header, or mostly comments), retrying a handful of times
 // before giving up and just taking the first solid non-comment chunk it
 // can find.
+// Removes a trailing // or # comment from a single line, but is
+// quote-aware so it won't butcher a "//" or "#" that's actually sitting
+// inside a string literal (e.g. a URL). Also strips a same-line /* ... */
+// block comment. Returns the line with trailing whitespace trimmed.
+function stripInlineComment(line){
+  let inSingle = false, inDouble = false, inBacktick = false;
+
+  for (let i = 0; i < line.length; i++){
+    const ch = line[i];
+    const prev = line[i - 1];
+
+    if (ch === "'" && !inDouble && !inBacktick && prev !== '\\') inSingle = !inSingle;
+    else if (ch === '"' && !inSingle && !inBacktick && prev !== '\\') inDouble = !inDouble;
+    else if (ch === '`' && !inSingle && !inDouble && prev !== '\\') inBacktick = !inBacktick;
+
+    if (!inSingle && !inDouble && !inBacktick){
+      if (ch === '/' && line[i + 1] === '/'){
+        return line.slice(0, i).replace(/\s+$/, '');
+      }
+      if (ch === '#' && line[i + 1] !== '!'){ // don't eat a shebang
+        return line.slice(0, i).replace(/\s+$/, '');
+      }
+    }
+  }
+
+  // Strip a same-line block comment like `x = 5; /* note */`
+  return line.replace(/\/\*.*?\*\//g, '').replace(/\s+$/, '');
+}
+
+// A line is a "continuation" (not a safe place to START a snippet) if it
+// opens with a closing bracket, a method-chain dot, a binary operator,
+// a comma, or a follow-on keyword like else/catch/finally — i.e. it only
+// makes sense as the tail end of the statement above it.
+const CONTINUATION_START = /^(?:[)\]},.;:]|else\b|elif\b|except\b|catch\b|finally\b|&&|\|\||[+\-*/%]=?|==|!=|<=|>=|=>|=|\?|:{2})/;
+
+function isSafeStartLine(line){
+  const t = line.trim();
+  if (t === '') return false;
+  return !CONTINUATION_START.test(t);
+}
+
 function extractSnippetFromText(text){
   const lines = text.split('\n');
   while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
   const flags = computeCommentFlags(lines);
 
-  for (let attempt = 0; attempt < 20; attempt++){
+  for (let attempt = 0; attempt < 30; attempt++){
     const len = 4 + Math.floor(Math.random() * 6);
     if (lines.length <= len) break;
     let start = Math.floor(Math.random() * (lines.length - len));
@@ -320,19 +361,31 @@ function extractSnippetFromText(text){
     while (end > start && (lines[end - 1].trim() === '' || flags[end - 1])) end--;
     if (end - start < 3) continue;
 
-    const slice = lines.slice(start, end);
+    // Never start on a continuation line — nudge forward to the next
+    // real statement start within this window, if there is one.
+    while (start < end && !isSafeStartLine(lines[start])) start++;
+    if (end - start < 3) continue;
+
+    const rawSlice = lines.slice(start, end);
     const sliceFlags = flags.slice(start, end);
-    const joined = slice.join('\n');
-    const nonBlank = slice.filter(l => l.trim() !== '').length;
-    const commentOnlyCount = sliceFlags.filter(Boolean).length;
-    const tooLong = slice.some(l => l.length > 90);
+
+    // Strip comment-only lines out entirely and strip trailing/inline
+    // comments off the lines that remain.
+    const cleanedLines = [];
+    for (let i = 0; i < rawSlice.length; i++){
+      if (sliceFlags[i]) continue; // drop comment-only lines
+      cleanedLines.push(stripInlineComment(rawSlice[i]));
+    }
+    while (cleanedLines.length && cleanedLines[cleanedLines.length - 1].trim() === '') cleanedLines.pop();
+    if (cleanedLines.length < 3) continue;
+
+    const joined = cleanedLines.join('\n');
+    const nonBlank = cleanedLines.filter(l => l.trim() !== '').length;
+    const tooLong = cleanedLines.some(l => l.length > 90);
     const looksLikeLicense = /copyright|license|permission is hereby/i.test(joined);
 
-    // Require: mostly non-blank, comment-only lines are at most 1 in 5,
-    // reasonable line length, and not a license header.
     if (
-      nonBlank >= Math.ceil(slice.length * 0.6) &&
-      commentOnlyCount <= Math.floor(slice.length * 0.2) &&
+      nonBlank >= Math.ceil(cleanedLines.length * 0.6) &&
       !tooLong &&
       !looksLikeLicense &&
       joined.trim().length > 20
@@ -341,18 +394,20 @@ function extractSnippetFromText(text){
     }
   }
 
-  // Fallback: walk forward until we land on a real code line, then grab
-  // a run of lines, skipping (not including) any comment-only ones.
+  // Fallback: walk forward until we land on a real, safe-to-start code
+  // line, then grab a run of lines, dropping comment-only ones and
+  // stripping trailing comments off the rest.
   let start = 0;
-  while (start < lines.length && (lines[start].trim() === '' || flags[start])) start++;
+  while (start < lines.length && (lines[start].trim() === '' || flags[start] || !isSafeStartLine(lines[start]))) start++;
 
   const collected = [];
   let i = start;
   while (i < lines.length && collected.length < 7){
-    if (!flags[i]) collected.push(lines[i]);
+    if (!flags[i]) collected.push(stripInlineComment(lines[i]));
     i++;
   }
-  if (collected.length === 0) collected.push(lines[start] || '// (empty file)');
+  while (collected.length && collected[collected.length - 1].trim() === '') collected.pop();
+  if (collected.length === 0) collected.push(lines[start] || 'return true;');
 
   return { code: collected.join('\n'), startLine: start + 1 };
 }
