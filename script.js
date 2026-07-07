@@ -9,7 +9,7 @@ const SNIPPETS = [
   },
   {
     repo: "rust-lang/rust", lang: "Rust", color: "#dea584", file: "sum.rs",
-    code: `fn checked_sum(nums: &[i32]) -> Option<i32> {\n    nums.iter().try_fold(0, |acc, &x| {\n        ans.checked_add(x)\n    })\n}`
+    code: `fn checked_sum(nums: &[i32]) -> Option<i32> {\n    nums.iter().try_fold(0, |acc, &x| {\n        acc.checked_add(x)\n    })\n}`
   },
   {
     repo: "golang/go", lang: "Go", color: "#00ADD8", file: "worker.go",
@@ -85,7 +85,7 @@ const SNIPPETS = [
   },
   {
     repo: "expressjs/express", lang: "JavaScript", color: "#f1e05a", file: "logger.js",
-    code: `function logger(req, res, next) {\n  const start = Date.now();\n  res.on('finish', () => {\n    console.log(\`${req.method} ${req.url} ${Date.now() - start}ms\`);\n  });\n  next();\n}`
+    code: `function logger(req, res, next) {\n  const start = Date.now();\n  res.on('finish', () => {\n    console.log(\`\${req.method} \${req.url} \${Date.now() - start}ms\`);\n  });\n  next();\n}`
   },
   {
     repo: "django/django", lang: "Python", color: "#3572A5", file: "middleware.py",
@@ -251,19 +251,33 @@ function b64DecodeUnicode(str){
 const LINE_COMMENT_START = /^\s*(\/\/|#(?!!)|--|<!--|-->)/;
 
 // Scans every line in the file ONCE and returns a boolean array the same
-// length as `lines`, where true means "this entire line is comment, no
-// real code on it." This tracks block-comment state (/* ... */) across
-// line boundaries, so continuation lines that don't start with `*` (a
-// common style) still get correctly recognized as comment lines.
+// length as `lines`, where true means "this entire line is comment/doc
+// text, no real code on it." Tracks block-comment state (/* ... */) AND
+// triple-quoted docstring state (""" ... """ / ''' ... ''') across line
+// boundaries, so continuation lines (including ones that don't start
+// with `*` or a quote) still get correctly recognized.
 function computeCommentFlags(lines){
   const flags = [];
-  let inBlock = false;
+  let inBlock = false;   // /* ... */
+  let tripleDelim = null; // '"""' or "'''" while inside a docstring block
 
   for (let raw of lines){
     let line = raw;
     let fullyComment = false;
 
-    if (inBlock){
+    if (tripleDelim){
+      const closeIdx = line.indexOf(tripleDelim);
+      if (closeIdx === -1){
+        fullyComment = true; // still inside the docstring
+      } else {
+        const after = line.slice(closeIdx + 3);
+        tripleDelim = null;
+        fullyComment = after.trim() === '';
+        line = after;
+      }
+    }
+
+    if (!tripleDelim && !fullyComment && inBlock){
       const closeIdx = line.indexOf('*/');
       if (closeIdx === -1){
         fullyComment = true; // still inside the block comment
@@ -275,20 +289,43 @@ function computeCommentFlags(lines){
       }
     }
 
-    if (!inBlock && !fullyComment){
+    if (!inBlock && !tripleDelim && !fullyComment){
       if (LINE_COMMENT_START.test(line) && line.trim() !== ''){
         fullyComment = true;
       } else {
         const openIdx = line.indexOf('/*');
-        if (openIdx !== -1){
-          const before = line.slice(0, openIdx).trim();
-          const closeIdx = line.indexOf('*/', openIdx + 2);
-          if (closeIdx === -1){
-            inBlock = true;
-            fullyComment = before === '';
+        const tDoubleIdx = line.indexOf('"""');
+        const tSingleIdx = line.indexOf("'''");
+
+        const candidates = [
+          openIdx !== -1 ? { type: 'block', idx: openIdx } : null,
+          tDoubleIdx !== -1 ? { type: '"""', idx: tDoubleIdx } : null,
+          tSingleIdx !== -1 ? { type: "'''", idx: tSingleIdx } : null,
+        ].filter(Boolean).sort((a, b) => a.idx - b.idx);
+
+        if (candidates.length){
+          const c = candidates[0];
+          const before = line.slice(0, c.idx).trim();
+
+          if (c.type === 'block'){
+            const closeIdx = line.indexOf('*/', c.idx + 2);
+            if (closeIdx === -1){
+              inBlock = true;
+              fullyComment = before === '';
+            } else {
+              const after = line.slice(closeIdx + 2).trim();
+              fullyComment = before === '' && after === '';
+            }
           } else {
-            const after = line.slice(closeIdx + 2).trim();
-            fullyComment = before === '' && after === '';
+            const delim = c.type;
+            const closeIdx = line.indexOf(delim, c.idx + 3);
+            if (closeIdx === -1){
+              tripleDelim = delim;
+              fullyComment = before === '';
+            } else {
+              const after = line.slice(closeIdx + 3).trim();
+              fullyComment = before === '' && after === '';
+            }
           }
         }
       }
@@ -298,36 +335,6 @@ function computeCommentFlags(lines){
   }
 
   return flags;
-}
-
-// --- FIX: reject windows containing a "dangling" closer ----------------
-// A window can pass isSafeStartLine() on its first line and still contain
-// a later line like `} else if (...) {` whose `}` closes a block that was
-// opened BEFORE the window started, e.g.:
-//
-//   current = sdscatlen(current,&c,1);
-//   } else if (*p == '"') {          <-- this brace closes something
-//   if (*(p+1) && !isspace(*(p+1))) goto err;   we never saw opened
-//   done=1;
-//
-// which is confusing to type because you're missing the opening `if`.
-// We scan the cleaned lines char-by-char, tracking a running balance for
-// {}, (), and []. If the balance ever goes negative, some closer in this
-// window doesn't have a matching opener inside the window, so we reject
-// the window and let the caller retry with a different random slice.
-function hasDanglingCloser(lines){
-  let brace = 0, paren = 0, bracket = 0;
-  for (const line of lines){
-    for (const ch of line){
-      if (ch === '{') brace++;
-      else if (ch === '}') { brace--; if (brace < 0) return true; }
-      else if (ch === '(') paren++;
-      else if (ch === ')') { paren--; if (paren < 0) return true; }
-      else if (ch === '[') bracket++;
-      else if (ch === ']') { bracket--; if (bracket < 0) return true; }
-    }
-  }
-  return false;
 }
 
 // Grabs a random 4-9 line window that looks like real code (not a blank
@@ -375,66 +382,80 @@ function isSafeStartLine(line){
   return !CONTINUATION_START.test(t);
 }
 
-function removeCommentsFromCode(text){
-          const lines = text.split('\n');
-          // Remove trailing empty lines
-          while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
-          const flags = computeCommentFlags(lines);
+// Strips a fixed amount of leading whitespace from every line (clamped
+// per-line so we never eat into actual content). Used once we know every
+// line in the window is indented at least `amount`.
+function dedentBy(lines, amount){
+  if (amount <= 0) return lines;
+  return lines.map(line => {
+    if (line.trim() === '') return line;
+    const lead = line.match(/^[ \t]*/)[0].length;
+    return line.slice(Math.min(amount, lead));
+  });
+}
 
-          const cleanedLines = [];
-          for (let i = 0; i < lines.length; i++){
-            if (flags[i]) continue; // drop comment-only lines
-            cleanedLines.push(stripInlineComment(lines[i]));
-          }
-          // Remove trailing empty lines again because stripInlineComment might make a line empty
-          while (cleanedLines.length && cleanedLines[cleanedLines.length - 1].trim() === '') cleanedLines.pop();
-          return cleanedLines.join('\n');
-        }
+function indentLength(line){
+  return line.match(/^[ \t]*/)[0].length;
+}
 
-        function extractSnippetFromText(text){
-  const lines = text.split('\n');
+// Builds a snippet window by growing FORWARD from a chosen start line,
+// only including lines that are indented at least as much as the start
+// line. As soon as a shallower line shows up (e.g. the closing brace of
+// an enclosing block), the window stops there instead of swallowing it.
+// This guarantees that after dedenting, the very first line always sits
+// flush at column 0 — no wall of leading spaces to type through.
+function growSnippetFrom(lines, flags, start, targetLen){
+  const baseIndent = indentLength(lines[start]);
+  const collected = [];
+  let i = start;
+
+  while (i < lines.length && collected.length < targetLen){
+    const line = lines[i];
+    const blank = line.trim() === '';
+
+    if (!blank && !flags[i] && indentLength(line) < baseIndent) break; // exited the block
+
+    if (!flags[i]) collected.push(stripInlineComment(line));
+    // comment-only lines are simply skipped (not included, not a stop condition)
+    i++;
+  }
+
+  while (collected.length && collected[collected.length - 1].trim() === '') collected.pop();
+  if (collected.length === 0) return null;
+
+  return { lines: dedentBy(collected, baseIndent), endIndex: i };
+}
+
+function extractSnippetFromText(text){
+  // Expand literal tab characters to 8 spaces up front. The typing box
+  // compares keystrokes character-for-character, and Tab is already
+  // captured globally as the "next snippet" shortcut — so a raw \t in
+  // the source would be completely untypeable if left as-is.
+  const lines = text.replace(/\t/g, ' '.repeat(8)).split('\n');
   while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
   const flags = computeCommentFlags(lines);
 
   for (let attempt = 0; attempt < 30; attempt++){
-    const len = 4 + Math.floor(Math.random() * 6);
-    if (lines.length <= len) break;
-    let start = Math.floor(Math.random() * (lines.length - len));
-    let end = start + len;
+    let start = Math.floor(Math.random() * lines.length);
 
-    // Trim leading/trailing blank or comment-only lines off this window.
-    while (start < end && (lines[start].trim() === '' || flags[start])) start++;
-    while (end > start && (lines[end - 1].trim() === '' || flags[end - 1])) end--;
-    if (end - start < 3) continue;
+    // Find the next safe, real, non-comment start line from here.
+    while (start < lines.length && (lines[start].trim() === '' || flags[start] || !isSafeStartLine(lines[start]))) start++;
+    if (start >= lines.length) continue;
 
-    // Never start on a continuation line — nudge forward to the next
-    // real statement start within this window, if there is one.
-    while (start < end && !isSafeStartLine(lines[start])) start++;
-    if (end - start < 3) continue;
+    const targetLen = 4 + Math.floor(Math.random() * 6);
+    const result = growSnippetFrom(lines, flags, start, targetLen);
+    if (!result || result.lines.length < 3) continue;
 
-    const rawSlice = lines.slice(start, end);
-    const sliceFlags = flags.slice(start, end);
-
-    // Strip comment-only lines out entirely and strip trailing/inline
-    // comments off the lines that remain.
-    const cleanedLines = [];
-    for (let i = 0; i < rawSlice.length; i++){
-      if (sliceFlags[i]) continue; // drop comment-only lines
-      cleanedLines.push(stripInlineComment(rawSlice[i]));
-    }
-    while (cleanedLines.length && cleanedLines[cleanedLines.length - 1].trim() === '') cleanedLines.pop();
-    if (cleanedLines.length < 3) continue;
-
-    const joined = cleanedLines.join('\n');
-    const nonBlank = cleanedLines.filter(l => l.trim() !== '').length;
-    const tooLong = cleanedLines.some(l => l.length > 90);
+    const dedented = result.lines;
+    const joined = dedented.join('\n');
+    const nonBlank = dedented.filter(l => l.trim() !== '').length;
+    const tooLong = dedented.some(l => l.length > 90);
     const looksLikeLicense = /copyright|license|permission is hereby/i.test(joined);
 
     if (
-      nonBlank >= Math.ceil(cleanedLines.length * 0.6) &&
+      nonBlank >= Math.ceil(dedented.length * 0.6) &&
       !tooLong &&
       !looksLikeLicense &&
-      !hasDanglingCloser(cleanedLines) &&
       joined.trim().length > 20
     ){
       return { code: joined, startLine: start + 1 };
@@ -442,36 +463,16 @@ function removeCommentsFromCode(text){
   }
 
   // Fallback: walk forward until we land on a real, safe-to-start code
-  // line, then grab a run of lines, dropping comment-only ones and
-  // stripping trailing comments off the rest. We also nudge forward if
-  // the resulting chunk has a dangling closer, same as the main loop.
+  // line, then grow a window the same indent-aware way.
   let start = 0;
   while (start < lines.length && (lines[start].trim() === '' || flags[start] || !isSafeStartLine(lines[start]))) start++;
 
-  function collectFrom(from){
-    const out = [];
-    let i = from;
-    while (i < lines.length && out.length < 7){
-      if (!flags[i]) out.push(stripInlineComment(lines[i]));
-      i++;
-    }
-    while (out.length && out[out.length - 1].trim() === '') out.pop();
-    return out;
+  if (start >= lines.length){
+    return { code: 'return true;', startLine: 1 };
   }
 
-  let collected = collectFrom(start);
-  let guard = 0;
-  while (collected.length && hasDanglingCloser(collected) && guard < 50){
-    start++;
-    while (start < lines.length && (lines[start].trim() === '' || flags[start] || !isSafeStartLine(lines[start]))) start++;
-    if (start >= lines.length) break;
-    collected = collectFrom(start);
-    guard++;
-  }
-
-  if (collected.length === 0) collected.push(lines[start] || 'return true;');
-
-  return { code: collected.join('\n'), startLine: start + 1 };
+  const result = growSnippetFrom(lines, flags, start, 7) || { lines: [lines[start].trim() || 'return true;'] };
+  return { code: result.lines.join('\n'), startLine: start + 1 };
 }
 
 async function fetchLiveSnippet(){
@@ -507,7 +508,7 @@ function withTimeout(promise, ms){
 
 let isLoading = false;
 
-// This is the single source of truth for "give me a snippet".
+// Fixed: this is the single source of truth for "give me a snippet".
 // IMPORTANT: it loads a LOCAL snippet immediately and synchronously —
 // the code box is never left blank/frozen waiting on the network.
 // It then tries a live GitHub fetch in the background and swaps to it
@@ -539,9 +540,8 @@ async function nextSnippet(){
 }
 
 function loadSnippet(snippet){
-  const cleanedCode = removeCommentsFromCode(snippet.code);
   current = snippet;
-  chars = Array.from(cleanedCode);
+  chars = Array.from(snippet.code);
   states = new Array(chars.length).fill('untyped');
   idx = 0;
   startTime = null;
@@ -554,7 +554,7 @@ function loadSnippet(snippet){
   document.getElementById('tabFileName').textContent = snippet.file;
   document.getElementById('tabLangDot').style.background = snippet.color;
 
-  const lineCount = cleanedCode.split('\n').length;
+  const lineCount = snippet.code.split('\n').length;
   lineNumbers.textContent = Array.from({length: lineCount}, (_, i) => i + 1).join('\n');
 
   overlay.querySelector('span').textContent = 'click to focus, then start typing';
@@ -652,8 +652,8 @@ function handleKey(e){
 
     if (e.ctrlKey || e.metaKey || e.altKey){
       let newIdx = idx;
-      while (newIdx > 0 && /\s/.test(chars[newIndex - 1])) newIdx--;
-      while (newIdx > 0 && /\w/.test(chars[newIndex - 1])) newIdx--;
+      while (newIdx > 0 && /\s/.test(chars[newIdx - 1])) newIdx--;
+      while (newIdx > 0 && /\w/.test(chars[newIdx - 1])) newIdx--;
       for (let i = newIdx; i < idx; i++) states[i] = 'untyped';
       idx = newIdx;
     } else {
