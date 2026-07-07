@@ -85,7 +85,7 @@ const SNIPPETS = [
   },
   {
     repo: "expressjs/express", lang: "JavaScript", color: "#f1e05a", file: "logger.js",
-    code: `function logger(req, res, next) {\n  const start = Date.now();\n  res.on('finish', () => {\n    console.log(\`${req.method} ${req.url} ${Date.now() - start}ms\`);\n  });\n  next();\n}`
+    code: `function logger(req, res, next) {\n  const start = Date.now();\n  res.on('finish', () => {\n    console.log(\`\${req.method} \${req.url} \${Date.now() - start}ms\`);\n  });\n  next();\n}`
   },
   {
     repo: "django/django", lang: "Python", color: "#3572A5", file: "middleware.py",

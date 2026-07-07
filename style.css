@@ -274,4 +274,4 @@ body{
 
 @media (prefers-reduced-motion:reduce){
   .char-cursor::before{animation:none;opacity:1;}
-}
+} 
