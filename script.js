@@ -245,32 +245,116 @@ function b64DecodeUnicode(str){
   );
 }
 
+// Single-line comment markers across the languages we pull from:
+// // (C-family/JS/Go/Rust/Java/Kotlin/Swift/PHP/TS), # (Python/Ruby/Shell/Elixir),
+// -- (SQL/Lua/Haskell), <!-- (HTML/XML-ish).
+const LINE_COMMENT_START = /^\s*(\/\/|#(?!!)|--|<!--|-->)/;
+
+// Scans every line in the file ONCE and returns a boolean array the same
+// length as `lines`, where true means "this entire line is comment, no
+// real code on it." This tracks block-comment state (/* ... */) across
+// line boundaries, so continuation lines that don't start with `*` (a
+// common style) still get correctly recognized as comment lines.
+function computeCommentFlags(lines){
+  const flags = [];
+  let inBlock = false;
+
+  for (let raw of lines){
+    let line = raw;
+    let fullyComment = false;
+
+    if (inBlock){
+      const closeIdx = line.indexOf('*/');
+      if (closeIdx === -1){
+        fullyComment = true; // still inside the block comment
+      } else {
+        inBlock = false;
+        const after = line.slice(closeIdx + 2);
+        fullyComment = after.trim() === '';
+        line = after; // only re-scan what's left, in case another comment opens on the same line
+      }
+    }
+
+    if (!inBlock && !fullyComment){
+      if (LINE_COMMENT_START.test(line) && line.trim() !== ''){
+        fullyComment = true;
+      } else {
+        const openIdx = line.indexOf('/*');
+        if (openIdx !== -1){
+          const before = line.slice(0, openIdx).trim();
+          const closeIdx = line.indexOf('*/', openIdx + 2);
+          if (closeIdx === -1){
+            inBlock = true;
+            fullyComment = before === '';
+          } else {
+            const after = line.slice(closeIdx + 2).trim();
+            fullyComment = before === '' && after === '';
+          }
+        }
+      }
+    }
+
+    flags.push(fullyComment);
+  }
+
+  return flags;
+}
+
 // Grabs a random 4-9 line window that looks like real code (not a blank
-// gap or a license header), retrying a handful of times before giving up
-// and just taking the first non-comment chunk it can find.
+// gap, a license header, or mostly comments), retrying a handful of times
+// before giving up and just taking the first solid non-comment chunk it
+// can find.
 function extractSnippetFromText(text){
   const lines = text.split('\n');
   while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+  const flags = computeCommentFlags(lines);
 
-  for (let attempt = 0; attempt < 12; attempt++){
+  for (let attempt = 0; attempt < 20; attempt++){
     const len = 4 + Math.floor(Math.random() * 6);
     if (lines.length <= len) break;
-    const start = Math.floor(Math.random() * (lines.length - len));
-    const slice = lines.slice(start, start + len);
+    let start = Math.floor(Math.random() * (lines.length - len));
+    let end = start + len;
+
+    // Trim leading/trailing blank or comment-only lines off this window.
+    while (start < end && (lines[start].trim() === '' || flags[start])) start++;
+    while (end > start && (lines[end - 1].trim() === '' || flags[end - 1])) end--;
+    if (end - start < 3) continue;
+
+    const slice = lines.slice(start, end);
+    const sliceFlags = flags.slice(start, end);
     const joined = slice.join('\n');
     const nonBlank = slice.filter(l => l.trim() !== '').length;
+    const commentOnlyCount = sliceFlags.filter(Boolean).length;
     const tooLong = slice.some(l => l.length > 90);
     const looksLikeLicense = /copyright|license|permission is hereby/i.test(joined);
 
-    if (nonBlank >= Math.ceil(len * 0.6) && !tooLong && !looksLikeLicense && joined.trim().length > 20){
+    // Require: mostly non-blank, comment-only lines are at most 1 in 5,
+    // reasonable line length, and not a license header.
+    if (
+      nonBlank >= Math.ceil(slice.length * 0.6) &&
+      commentOnlyCount <= Math.floor(slice.length * 0.2) &&
+      !tooLong &&
+      !looksLikeLicense &&
+      joined.trim().length > 20
+    ){
       return { code: joined, startLine: start + 1 };
     }
   }
 
+  // Fallback: walk forward until we land on a real code line, then grab
+  // a run of lines, skipping (not including) any comment-only ones.
   let start = 0;
-  while (start < lines.length && (lines[start].trim() === '' || /^\s*(\/\/|#|\*|\/\*)/.test(lines[start]))) start++;
-  const len = Math.min(7, Math.max(1, lines.length - start));
-  return { code: lines.slice(start, start + len).join('\n'), startLine: start + 1 };
+  while (start < lines.length && (lines[start].trim() === '' || flags[start])) start++;
+
+  const collected = [];
+  let i = start;
+  while (i < lines.length && collected.length < 7){
+    if (!flags[i]) collected.push(lines[i]);
+    i++;
+  }
+  if (collected.length === 0) collected.push(lines[start] || '// (empty file)');
+
+  return { code: collected.join('\n'), startLine: start + 1 };
 }
 
 async function fetchLiveSnippet(){
