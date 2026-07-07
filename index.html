@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>commit --typing</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="window">
+  <div class="titlebar">
+    <div class="dots">
+      <div class="dot red"></div>
+      <div class="dot yellow"></div>
+      <div class="dot green"></div>
+    </div>
+    <div class="file-tab">
+      <span class="lang-dot" id="tabLangDot"></span>
+      <span id="tabFileName">loading.txt</span>
+    </div>
+  </div>
+
+  <div class="meta">
+    <div class="repo">
+      <span>📦</span>
+      <b id="repoName">octocat/Hello-World</b>
+      <span id="repoLang">· JavaScript</span>
+    </div>
+    <div class="stats">
+      <div class="stat">
+        <span class="val" id="wpmVal">0</span>
+        <span class="lbl">wpm</span>
+      </div>
+      <div class="stat acc">
+        <span class="val" id="accVal">100%</span>
+        <span class="lbl">accuracy</span>
+      </div>
+      <div class="stat time">
+        <span class="val" id="timeVal">0.0s</span>
+        <span class="lbl">time</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="code-wrap">
+    <div class="code-box" id="codeBox">
+      <div class="line-numbers" id="lineNumbers"></div>
+      <div class="code-text" id="codeText"></div>
+    </div>
+    <div class="overlay" id="overlay"><span>click to focus, then start typing</span></div>
+    <input class="hidden-input" id="hiddenInput" autocomplete="off" autocapitalize="off" spellcheck="false">
+  </div>
+
+  <div class="diffstat-row">
+    <span class="diffstat-text"><span class="plus" id="plusStat">+0</span> <span class="minus" id="minusStat">-0</span></span>
+    <div class="diffstat-bar">
+      <div class="add" id="addBar" style="width:0%"></div>
+      <div class="rem" id="remBar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="btns">
+      <button class="btn" id="restartBtn">↺ Restart</button>
+      <button class="btn primary" id="nextBtn">Next Test →</button>
+    </div>
+    <div class="hint">press <kbd>tab</kbd> then <kbd>enter</kbd> for a new snippet</div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
