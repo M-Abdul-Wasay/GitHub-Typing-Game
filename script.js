@@ -307,27 +307,31 @@ function withTimeout(promise, ms){
 let isLoading = false;
 
 // Fixed: this is the single source of truth for "give me a snippet".
-// It tries a live GitHub fetch first (with a timeout), and falls back
-// to the local bundled list if that fails or is too slow. Previously
-// there was a dangling call to an undefined `pickSnippet()` function
-// at three call sites (initial load, Next button, Tab+Enter) which
-// would have thrown a ReferenceError and crashed the app.
+// IMPORTANT: it loads a LOCAL snippet immediately and synchronously —
+// the code box is never left blank/frozen waiting on the network.
+// It then tries a live GitHub fetch in the background and swaps to it
+// ONLY if the user hasn't started typing yet. If GitHub is blocked,
+// rate-limited, slow, or unreachable (common on file:// pages, locked-down
+// networks, or ad-blockers), the local snippet just stays — no crash,
+// no empty box.
 async function nextSnippet(){
   if (isLoading) return;
   isLoading = true;
   document.getElementById('nextBtn').disabled = true;
 
-  overlay.querySelector('span').textContent = 'fetching a snippet from GitHub…';
-  overlay.classList.remove('hide');
+  // Show something typeable right away, no network dependency.
+  loadSnippet(pickLocalSnippet(current));
 
-  let snippet;
+  // Best-effort upgrade to a real live GitHub snippet.
   try {
-    snippet = await withTimeout(fetchLiveSnippet(), 6000);
+    const liveSnippet = await withTimeout(fetchLiveSnippet(), 6000);
+    if (idx === 0 && !startTime){
+      loadSnippet(liveSnippet);
+    }
   } catch (err) {
-    snippet = pickLocalSnippet(current);
+    console.warn('Live snippet fetch skipped/failed, staying on local snippet:', err);
   }
 
-  loadSnippet(snippet);
   document.getElementById('nextBtn').disabled = false;
   isLoading = false;
   hiddenInput.focus();
