@@ -33,13 +33,14 @@ const SNIPPETS = [
   }
 ];
 
-let current, chars, states, idx, startTime, mistakesTotal, correctTotal, timerInterval;
+let current, chars, states, idx, startTime, mistakesTotal, correctTotal, timerInterval, tabHeld = false;
 
 const codeText = document.getElementById('codeText');
 const lineNumbers = document.getElementById('lineNumbers');
 const overlay = document.getElementById('overlay');
 const hiddenInput = document.getElementById('hiddenInput');
 const codeBox = document.getElementById('codeBox');
+const cursorEl = document.getElementById('cursorEl');
 
 function pickSnippet(avoid){
   let pool = SNIPPETS;
@@ -76,11 +77,31 @@ function render(){
   for (let i = 0; i < chars.length; i++){
     const ch = chars[i];
     const escaped = ch.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-    let cls = 'char-' + states[i];
-    if (i === idx) cls += ' char-cursor';
-    html += `<span class="${cls}">${escaped}</span>`;
+    html += `<span class="char-${states[i]}">${escaped}</span>`;
   }
   codeText.innerHTML = html;
+  positionCursor();
+}
+
+// Moves the single persistent cursor element to sit at the current index.
+// Because it's the same DOM node every time (not recreated), the CSS
+// transition on transform makes it glide between letters instead of
+// teleporting.
+function positionCursor(){
+  if (!chars.length) return;
+  const atEnd = idx >= chars.length;
+  const targetSpan = atEnd ? codeText.children[chars.length - 1] : codeText.children[idx];
+  if (!targetSpan) return;
+
+  const spanRect = targetSpan.getBoundingClientRect();
+  const boxRect = codeBox.getBoundingClientRect();
+  let left = spanRect.left - boxRect.left;
+  const top = spanRect.top - boxRect.top;
+  if (atEnd) left += spanRect.width;
+
+  cursorEl.style.transform = `translate(${left}px, ${top}px)`;
+  cursorEl.style.height = spanRect.height + 'px';
+  cursorEl.classList.toggle('hide', atEnd);
 }
 
 function updateStats(reset){
@@ -110,32 +131,51 @@ function updateStats(reset){
   document.getElementById('remBar').style.width = (mistakesTotal/total*100) + '%';
 }
 
-let tabHeld = false;
+function resumeAfterEdit(){
+  if (idx < chars.length){
+    overlay.classList.add('hide');
+    if (startTime){
+      clearInterval(timerInterval);
+      timerInterval = setInterval(() => updateStats(false), 200);
+    }
+  }
+}
 
 function handleKey(e){
+  // --- Tab + Enter: load a new snippet (matches the on-screen hint) ---
   if (e.key === 'Tab'){
     e.preventDefault();
     tabHeld = true;
     return;
   }
-
   if (e.key === 'Enter' && tabHeld){
     e.preventDefault();
     loadSnippet(pickSnippet(current));
     return;
   }
 
-  if (idx >= chars.length) return;
-
+  // --- Backspace, including VS Code's Ctrl/Cmd/Option+Backspace (delete word) ---
   if (e.key === 'Backspace'){
     e.preventDefault();
-    if (idx > 0){
+    if (idx === 0) return;
+
+    if (e.ctrlKey || e.metaKey || e.altKey){
+      let newIdx = idx;
+      while (newIdx > 0 && /\s/.test(chars[newIdx - 1])) newIdx--;
+      while (newIdx > 0 && /\w/.test(chars[newIdx - 1])) newIdx--;
+      for (let i = newIdx; i < idx; i++) states[i] = 'untyped';
+      idx = newIdx;
+    } else {
       idx--;
       states[idx] = 'untyped';
-      render();
     }
+
+    resumeAfterEdit();
+    render();
     return;
   }
+
+  if (idx >= chars.length) return;
 
   let inputChar = null;
   if (e.key === 'Enter') inputChar = '\n';
@@ -195,6 +235,7 @@ document.addEventListener('keydown', (e) => {
 
 // Auto-focus on load so typing works immediately, no click required.
 window.addEventListener('load', () => hiddenInput.focus());
+window.addEventListener('resize', () => positionCursor());
 
 document.getElementById('restartBtn').addEventListener('click', () => {
   loadSnippet(current);
