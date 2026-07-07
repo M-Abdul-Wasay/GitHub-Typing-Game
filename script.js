@@ -110,10 +110,22 @@ function updateStats(reset){
   document.getElementById('remBar').style.width = (mistakesTotal/total*100) + '%';
 }
 
-function handleKey(e){
-  if (idx >= chars.length) return;
+let tabHeld = false;
 
-  if (e.key === 'Tab'){ e.preventDefault(); return; }
+function handleKey(e){
+  if (e.key === 'Tab'){
+    e.preventDefault();
+    tabHeld = true;
+    return;
+  }
+
+  if (e.key === 'Enter' && tabHeld){
+    e.preventDefault();
+    loadSnippet(pickSnippet(current));
+    return;
+  }
+
+  if (idx >= chars.length) return;
 
   if (e.key === 'Backspace'){
     e.preventDefault();
@@ -157,6 +169,9 @@ function handleKey(e){
 }
 
 hiddenInput.addEventListener('keydown', handleKey);
+hiddenInput.addEventListener('keyup', (e) => {
+  if (e.key === 'Tab') tabHeld = false;
+});
 codeBox.addEventListener('click', () => hiddenInput.focus());
 overlay.addEventListener('click', () => hiddenInput.focus());
 hiddenInput.addEventListener('focus', () => {
