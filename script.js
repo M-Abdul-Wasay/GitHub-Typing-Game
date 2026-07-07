@@ -30,6 +30,138 @@ const SNIPPETS = [
   {
     repo: "twbs/bootstrap", lang: "CSS", color: "#563d7c", file: "grid.css",
     code: `.col {\n  flex: 1 0 0%;\n  padding-right: 12px;\n  padding-left: 12px;\n}`
+  },
+  {
+    repo: "spring-projects/spring-boot", lang: "Java", color: "#b07219", file: "Retryable.java",
+    code: `public int retryCount(int attempts, int max) {\n    if (attempts >= max) {\n        return max;\n    }\n    return attempts + 1;\n}`
+  },
+  {
+    repo: "JetBrains/kotlin", lang: "Kotlin", color: "#A97BFF", file: "Result.kt",
+    code: `fun <T> safeCall(block: () -> T): T? {\n    return try {\n        block()\n    } catch (e: Exception) {\n        null\n    }\n}`
+  },
+  {
+    repo: "apple/swift", lang: "Swift", color: "#F05138", file: "Clamp.swift",
+    code: `func clamp<T: Comparable>(_ value: T, min lo: T, max hi: T) -> T {\n    return min(max(value, lo), hi)\n}`
+  },
+  {
+    repo: "laravel/framework", lang: "PHP", color: "#4F5D95", file: "helpers.php",
+    code: `function arrayGet($array, $key, $default = null) {\n    if (!isset($array[$key])) {\n        return $default;\n    }\n    return $array[$key];\n}`
+  },
+  {
+    repo: "nlohmann/json", lang: "C++", color: "#f34b7d", file: "trim.cpp",
+    code: `std::string trim(const std::string& s) {\n    size_t start = s.find_first_not_of(" \\t\\n");\n    size_t end = s.find_last_not_of(" \\t\\n");\n    return s.substr(start, end - start + 1);\n}`
+  },
+  {
+    repo: "ohmyzsh/ohmyzsh", lang: "Shell", color: "#89e051", file: "has_cmd.sh",
+    code: `has_cmd() {\n  command -v "$1" >/dev/null 2>&1\n}\n\nif has_cmd git; then\n  echo "git found"\nfi`
+  },
+  {
+    repo: "elixir-lang/elixir", lang: "Elixir", color: "#6e4a7e", file: "chunker.ex",
+    code: `def chunk_every(list, size) do\n  list\n  |> Enum.chunk_every(size)\n  |> Enum.reject(&(&1 == []))\nend`
+  },
+  {
+    repo: "ghc/ghc", lang: "Haskell", color: "#5e5086", file: "Fib.hs",
+    code: `fib :: Int -> Integer\nfib n = fibs !! n\n  where fibs = 0 : 1 : zipWith (+) fibs (tail fibs)`
+  },
+  {
+    repo: "lua/lua", lang: "Lua", color: "#000080", file: "class.lua",
+    code: `function Class(base)\n  local c = {}\n  c.__index = c\n  setmetatable(c, { __index = base })\n  return c\nend`
+  },
+  {
+    repo: "dotnet/runtime", lang: "C#", color: "#178600", file: "Retry.cs",
+    code: `public static T Retry<T>(Func<T> action, int attempts) {\n    for (int i = 0; i < attempts; i++) {\n        try { return action(); }\n        catch when (i < attempts - 1) { }\n    }\n    throw new Exception("failed");\n}`
+  },
+  {
+    repo: "dart-lang/sdk", lang: "Dart", color: "#00B4AB", file: "debounce.dart",
+    code: `Timer? _timer;\nvoid debounce(Duration d, void Function() fn) {\n  _timer?.cancel();\n  _timer = Timer(d, fn);\n}`
+  },
+  {
+    repo: "scala/scala", lang: "Scala", color: "#c22d40", file: "Tree.scala",
+    code: `sealed trait Tree\ncase object Leaf extends Tree\ncase class Node(l: Tree, v: Int, r: Tree) extends Tree`
+  },
+  {
+    repo: "postgres/postgres", lang: "SQL", color: "#e38c00", file: "top_users.sql",
+    code: `SELECT user_id, COUNT(*) AS orders\nFROM orders\nWHERE created_at > NOW() - INTERVAL '30 days'\nGROUP BY user_id\nORDER BY orders DESC\nLIMIT 10;`
+  },
+  {
+    repo: "expressjs/express", lang: "JavaScript", color: "#f1e05a", file: "logger.js",
+    code: `function logger(req, res, next) {\n  const start = Date.now();\n  res.on('finish', () => {\n    console.log(\`${req.method} ${req.url} ${Date.now() - start}ms\`);\n  });\n  next();\n}`
+  },
+  {
+    repo: "django/django", lang: "Python", color: "#3572A5", file: "middleware.py",
+    code: `class TimingMiddleware:\n    def __init__(self, get_response):\n        self.get_response = get_response\n\n    def __call__(self, request):\n        response = self.get_response(request)\n        return response`
+  },
+  {
+    repo: "redis/redis", lang: "C", color: "#555555", file: "bitcount.c",
+    code: `int popcount(unsigned int x) {\n    int count = 0;\n    while (x) {\n        count += x & 1;\n        x >>= 1;\n    }\n    return count;\n}`
+  },
+  {
+    repo: "tokio-rs/tokio", lang: "Rust", color: "#dea584", file: "channel.rs",
+    code: `async fn producer(tx: Sender<i32>) {\n    for i in 0..10 {\n        tx.send(i).await.unwrap();\n    }\n}`
+  },
+  {
+    repo: "kubernetes/kubernetes", lang: "Go", color: "#00ADD8", file: "labels.go",
+    code: `func MatchesLabels(pod map[string]string, selector map[string]string) bool {\n    for k, v := range selector {\n        if pod[k] != v {\n            return false\n        }\n    }\n    return true\n}`
+  },
+  {
+    repo: "sveltejs/svelte", lang: "TypeScript", color: "#3178c6", file: "store.ts",
+    code: `function writable<T>(initial: T) {\n  let value = initial;\n  const subs = new Set<(v: T) => void>();\n  return {\n    set: (v: T) => { value = v; subs.forEach(fn => fn(v)); }\n  };\n}`
+  },
+  {
+    repo: "discourse/discourse", lang: "Ruby", color: "#701516", file: "topics.rb",
+    code: `def hot_topics(limit = 5)\n  Topic.where(closed: false)\n       .order(views: :desc)\n       .limit(limit)\nend`
+  },
+  {
+    repo: "tailwindlabs/tailwindcss", lang: "CSS", color: "#563d7c", file: "truncate.css",
+    code: `.truncate {\n  overflow: hidden;\n  text-overflow: ellipsis;\n  white-space: nowrap;\n}`
+  },
+  {
+    repo: "apache/kafka", lang: "Java", color: "#b07219", file: "Partitioner.java",
+    code: `public int partition(String key, int numPartitions) {\n    if (key == null) {\n        return 0;\n    }\n    return Math.abs(key.hashCode()) % numPartitions;\n}`
+  },
+  {
+    repo: "square/okhttp", lang: "Kotlin", color: "#A97BFF", file: "Cache.kt",
+    code: `class LruCache<K, V>(private val maxSize: Int) {\n    private val map = LinkedHashMap<K, V>()\n    fun get(key: K): V? = map[key]\n}`
+  },
+  {
+    repo: "vapor/vapor", lang: "Swift", color: "#F05138", file: "Middleware.swift",
+    code: `struct TimingMiddleware: Middleware {\n    func respond(to req: Request, chainingTo next: Responder) -> EventLoopFuture<Response> {\n        let start = Date()\n        return next.respond(to: req)\n    }\n}`
+  },
+  {
+    repo: "symfony/symfony", lang: "PHP", color: "#4F5D95", file: "Container.php",
+    code: `class Container {\n    private array $services = [];\n\n    public function set(string $id, callable $factory): void {\n        $this->services[$id] = $factory;\n    }\n}`
+  },
+  {
+    repo: "opencv/opencv", lang: "C++", color: "#f34b7d", file: "clamp.cpp",
+    code: `template <typename T>\nT clamp(T value, T lo, T hi) {\n    return (value < lo) ? lo : (hi < value) ? hi : value;\n}`
+  },
+  {
+    repo: "phoenixframework/phoenix", lang: "Elixir", color: "#6e4a7e", file: "socket.ex",
+    code: `def handle_in("ping", _payload, socket) do\n  {:reply, {:ok, %{message: "pong"}}, socket}\nend`
+  },
+  {
+    repo: "apache/spark", lang: "Scala", color: "#c22d40", file: "WordCount.scala",
+    code: `val counts = textFile\n  .flatMap(line => line.split(" "))\n  .map(word => (word, 1))\n  .reduceByKey(_ + _)`
+  },
+  {
+    repo: "flutter/flutter", lang: "Dart", color: "#00B4AB", file: "counter.dart",
+    code: `class Counter extends ChangeNotifier {\n  int _count = 0;\n  int get count => _count;\n\n  void increment() {\n    _count++;\n    notifyListeners();\n  }\n}`
+  },
+  {
+    repo: "aspnet/AspNetCore", lang: "C#", color: "#178600", file: "Extensions.cs",
+    code: `public static class StringExtensions {\n    public static bool IsNullOrBlank(this string? s) {\n        return string.IsNullOrWhiteSpace(s);\n    }\n}`
+  },
+  {
+    repo: "hashicorp/terraform", lang: "Go", color: "#00ADD8", file: "retry.go",
+    code: `func RetryContext(ctx context.Context, fn func() error) error {\n    for {\n        err := fn()\n        if err == nil {\n            return nil\n        }\n        select {\n        case <-ctx.Done():\n            return ctx.Err()\n        default:\n        }\n    }\n}`
+  },
+  {
+    repo: "numpy/numpy", lang: "Python", color: "#3572A5", file: "normalize.py",
+    code: `def normalize(vec):\n    norm = sum(x * x for x in vec) ** 0.5\n    if norm == 0:\n        return vec\n    return [x / norm for x in vec]`
+  },
+  {
+    repo: "moby/moby", lang: "Go", color: "#00ADD8", file: "container.go",
+    code: `func IsRunning(state string) bool {\n    switch state {\n    case "running", "restarting":\n        return true\n    default:\n        return false\n    }\n}`
   }
 ];
 
@@ -42,10 +174,157 @@ const hiddenInput = document.getElementById('hiddenInput');
 const codeBox = document.getElementById('codeBox');
 const cursorEl = document.getElementById('cursorEl');
 
-function pickSnippet(avoid){
-  let pool = SNIPPETS;
-  if (avoid && SNIPPETS.length > 1) pool = SNIPPETS.filter(s => s !== avoid);
-  return pool[Math.floor(Math.random() * pool.length)];
+let recentHistory = [];
+
+function pickLocalSnippet(avoid){
+  // Avoid repeating anything from the last several picks (up to half the library).
+  const historyLimit = Math.max(1, Math.floor(SNIPPETS.length / 2));
+  let pool = SNIPPETS.filter(s => !recentHistory.includes(s));
+  if (pool.length === 0) pool = SNIPPETS.filter(s => s !== avoid);
+
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+
+  recentHistory.push(pick);
+  if (recentHistory.length > historyLimit) recentHistory.shift();
+
+  return { ...pick, live: false };
+}
+
+// --- Live GitHub sourcing ---------------------------------------------
+// Real files in real public repos. We fetch the whole file via GitHub's
+// Contents API (CORS-enabled, no auth needed for public repos) then slice
+// a random reasonable-looking chunk of consecutive lines out of it.
+const SOURCES = [
+  { owner: "torvalds", repo: "linux", path: "kernel/fork.c" },
+  { owner: "python", repo: "cpython", path: "Lib/random.py" },
+  { owner: "rust-lang", repo: "rust", path: "library/alloc/src/vec/mod.rs" },
+  { owner: "golang", repo: "go", path: "src/strings/strings.go" },
+  { owner: "facebook", repo: "react", path: "packages/shared/shallowEqual.js" },
+  { owner: "microsoft", repo: "TypeScript", path: "src/compiler/core.ts" },
+  { owner: "rails", repo: "rails", path: "activesupport/lib/active_support/core_ext/string/inflections.rb" },
+  { owner: "twbs", repo: "bootstrap", path: "scss/mixins/_grid.scss" },
+  { owner: "redis", repo: "redis", path: "src/sds.c" },
+  { owner: "nodejs", repo: "node", path: "lib/events.js" },
+  { owner: "django", repo: "django", path: "django/utils/text.py" },
+  { owner: "laravel", repo: "framework", path: "src/Illuminate/Support/Str.php" },
+  { owner: "kubernetes", repo: "kubernetes", path: "pkg/util/wait/wait.go" },
+  { owner: "expressjs", repo: "express", path: "lib/utils.js" },
+  { owner: "vuejs", repo: "core", path: "packages/reactivity/src/effect.ts" },
+  { owner: "elixir-lang", repo: "elixir", path: "lib/elixir/lib/enum.ex" },
+  { owner: "JuliaLang", repo: "julia", path: "base/math.jl" },
+  { owner: "google", repo: "guava", path: "guava/src/com/google/common/base/Strings.java" }
+];
+
+const LANG_MAP = {
+  c:{lang:'C',color:'#555555'}, h:{lang:'C',color:'#555555'},
+  py:{lang:'Python',color:'#3572A5'},
+  rs:{lang:'Rust',color:'#dea584'},
+  go:{lang:'Go',color:'#00ADD8'},
+  js:{lang:'JavaScript',color:'#f1e05a'},
+  ts:{lang:'TypeScript',color:'#3178c6'},
+  rb:{lang:'Ruby',color:'#701516'},
+  scss:{lang:'SCSS',color:'#c6538c'}, css:{lang:'CSS',color:'#563d7c'},
+  php:{lang:'PHP',color:'#4F5D95'},
+  java:{lang:'Java',color:'#b07219'},
+  jl:{lang:'Julia',color:'#a270ba'},
+  ex:{lang:'Elixir',color:'#6e4a7e'}, exs:{lang:'Elixir',color:'#6e4a7e'},
+  cpp:{lang:'C++',color:'#f34b7d'}, cc:{lang:'C++',color:'#f34b7d'}
+};
+
+function detectLang(path){
+  const ext = path.split('.').pop().toLowerCase();
+  return LANG_MAP[ext] || { lang: 'Code', color: '#8b949e' };
+}
+
+// atob() alone mangles multi-byte UTF-8; this decodes it properly.
+function b64DecodeUnicode(str){
+  return decodeURIComponent(
+    Array.prototype.map.call(atob(str), c =>
+      '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+    ).join('')
+  );
+}
+
+// Grabs a random 4-9 line window that looks like real code (not a blank
+// gap or a license header), retrying a handful of times before giving up
+// and just taking the first non-comment chunk it can find.
+function extractSnippetFromText(text){
+  const lines = text.split('\n');
+  while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+
+  for (let attempt = 0; attempt < 12; attempt++){
+    const len = 4 + Math.floor(Math.random() * 6);
+    if (lines.length <= len) break;
+    const start = Math.floor(Math.random() * (lines.length - len));
+    const slice = lines.slice(start, start + len);
+    const joined = slice.join('\n');
+    const nonBlank = slice.filter(l => l.trim() !== '').length;
+    const tooLong = slice.some(l => l.length > 90);
+    const looksLikeLicense = /copyright|license|permission is hereby/i.test(joined);
+
+    if (nonBlank >= Math.ceil(len * 0.6) && !tooLong && !looksLikeLicense && joined.trim().length > 20){
+      return { code: joined, startLine: start + 1 };
+    }
+  }
+
+  let start = 0;
+  while (start < lines.length && (lines[start].trim() === '' || /^\s*(\/\/|#|\*|\/\*)/.test(lines[start]))) start++;
+  const len = Math.min(7, Math.max(1, lines.length - start));
+  return { code: lines.slice(start, start + len).join('\n'), startLine: start + 1 };
+}
+
+async function fetchLiveSnippet(){
+  const src = SOURCES[Math.floor(Math.random() * SOURCES.length)];
+  const url = `https://api.github.com/repos/${src.owner}/${src.repo}/contents/${src.path}`;
+  const res = await fetch(url, { headers: { Accept: 'application/vnd.github.v3+json' } });
+  if (!res.ok) throw new Error('GitHub fetch failed: ' + res.status);
+
+  const json = await res.json();
+  if (json.encoding !== 'base64' || !json.content) throw new Error('Unexpected response shape');
+
+  const text = b64DecodeUnicode(json.content.replace(/\n/g, ''));
+  const { code, startLine } = extractSnippetFromText(text);
+  const meta = detectLang(src.path);
+
+  return {
+    repo: `${src.owner}/${src.repo}`,
+    lang: meta.lang,
+    color: meta.color,
+    file: src.path.split('/').pop(),
+    code,
+    startLine,
+    live: true
+  };
+}
+
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))
+  ]);
+}
+
+let isLoading = false;
+
+async function nextSnippet(){
+  if (isLoading) return;
+  isLoading = true;
+  document.getElementById('nextBtn').disabled = true;
+
+  overlay.querySelector('span').textContent = 'fetching a snippet from GitHub…';
+  overlay.classList.remove('hide');
+
+  let snippet;
+  try {
+    snippet = await withTimeout(fetchLiveSnippet(), 6000);
+  } catch (err) {
+    snippet = pickLocalSnippet(current);
+  }
+
+  loadSnippet(snippet);
+  document.getElementById('nextBtn').disabled = false;
+  isLoading = false;
+  hiddenInput.focus();
 }
 
 function loadSnippet(snippet){
