@@ -300,6 +300,36 @@ function computeCommentFlags(lines){
   return flags;
 }
 
+// --- FIX: reject windows containing a "dangling" closer ----------------
+// A window can pass isSafeStartLine() on its first line and still contain
+// a later line like `} else if (...) {` whose `}` closes a block that was
+// opened BEFORE the window started, e.g.:
+//
+//   current = sdscatlen(current,&c,1);
+//   } else if (*p == '"') {          <-- this brace closes something
+//   if (*(p+1) && !isspace(*(p+1))) goto err;   we never saw opened
+//   done=1;
+//
+// which is confusing to type because you're missing the opening `if`.
+// We scan the cleaned lines char-by-char, tracking a running balance for
+// {}, (), and []. If the balance ever goes negative, some closer in this
+// window doesn't have a matching opener inside the window, so we reject
+// the window and let the caller retry with a different random slice.
+function hasDanglingCloser(lines){
+  let brace = 0, paren = 0, bracket = 0;
+  for (const line of lines){
+    for (const ch of line){
+      if (ch === '{') brace++;
+      else if (ch === '}') { brace--; if (brace < 0) return true; }
+      else if (ch === '(') paren++;
+      else if (ch === ')') { paren--; if (paren < 0) return true; }
+      else if (ch === '[') bracket++;
+      else if (ch === ']') { bracket--; if (bracket < 0) return true; }
+    }
+  }
+  return false;
+}
+
 // Grabs a random 4-9 line window that looks like real code (not a blank
 // gap, a license header, or mostly comments), retrying a handful of times
 // before giving up and just taking the first solid non-comment chunk it
@@ -388,6 +418,7 @@ function extractSnippetFromText(text){
       nonBlank >= Math.ceil(cleanedLines.length * 0.6) &&
       !tooLong &&
       !looksLikeLicense &&
+      !hasDanglingCloser(cleanedLines) &&
       joined.trim().length > 20
     ){
       return { code: joined, startLine: start + 1 };
@@ -396,17 +427,32 @@ function extractSnippetFromText(text){
 
   // Fallback: walk forward until we land on a real, safe-to-start code
   // line, then grab a run of lines, dropping comment-only ones and
-  // stripping trailing comments off the rest.
+  // stripping trailing comments off the rest. We also nudge forward if
+  // the resulting chunk has a dangling closer, same as the main loop.
   let start = 0;
   while (start < lines.length && (lines[start].trim() === '' || flags[start] || !isSafeStartLine(lines[start]))) start++;
 
-  const collected = [];
-  let i = start;
-  while (i < lines.length && collected.length < 7){
-    if (!flags[i]) collected.push(stripInlineComment(lines[i]));
-    i++;
+  function collectFrom(from){
+    const out = [];
+    let i = from;
+    while (i < lines.length && out.length < 7){
+      if (!flags[i]) out.push(stripInlineComment(lines[i]));
+      i++;
+    }
+    while (out.length && out[out.length - 1].trim() === '') out.pop();
+    return out;
   }
-  while (collected.length && collected[collected.length - 1].trim() === '') collected.pop();
+
+  let collected = collectFrom(start);
+  let guard = 0;
+  while (collected.length && hasDanglingCloser(collected) && guard < 50){
+    start++;
+    while (start < lines.length && (lines[start].trim() === '' || flags[start] || !isSafeStartLine(lines[start]))) start++;
+    if (start >= lines.length) break;
+    collected = collectFrom(start);
+    guard++;
+  }
+
   if (collected.length === 0) collected.push(lines[start] || 'return true;');
 
   return { code: collected.join('\n'), startLine: start + 1 };
@@ -445,7 +491,7 @@ function withTimeout(promise, ms){
 
 let isLoading = false;
 
-// Fixed: this is the single source of truth for "give me a snippet".
+// This is the single source of truth for "give me a snippet".
 // IMPORTANT: it loads a LOCAL snippet immediately and synchronously —
 // the code box is never left blank/frozen waiting on the network.
 // It then tries a live GitHub fetch in the background and swaps to it
