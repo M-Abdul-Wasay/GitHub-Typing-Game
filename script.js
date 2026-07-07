@@ -306,6 +306,12 @@ function withTimeout(promise, ms){
 
 let isLoading = false;
 
+// Fixed: this is the single source of truth for "give me a snippet".
+// It tries a live GitHub fetch first (with a timeout), and falls back
+// to the local bundled list if that fails or is too slow. Previously
+// there was a dangling call to an undefined `pickSnippet()` function
+// at three call sites (initial load, Next button, Tab+Enter) which
+// would have thrown a ReferenceError and crashed the app.
 async function nextSnippet(){
   if (isLoading) return;
   isLoading = true;
@@ -429,7 +435,7 @@ function handleKey(e){
   }
   if (e.key === 'Enter' && tabHeld){
     e.preventDefault();
-    loadSnippet(pickSnippet(current));
+    nextSnippet();
     return;
   }
 
@@ -521,8 +527,9 @@ document.getElementById('restartBtn').addEventListener('click', () => {
   hiddenInput.focus();
 });
 document.getElementById('nextBtn').addEventListener('click', () => {
-  loadSnippet(pickSnippet(current));
-  hiddenInput.focus();
+  nextSnippet();
 });
 
-loadSnippet(pickSnippet());
+// Initial load — kick off with a snippet fetch (falls back to local list
+// automatically if GitHub is unreachable or slow).
+nextSnippet();
