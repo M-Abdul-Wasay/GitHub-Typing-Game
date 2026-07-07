@@ -9,7 +9,7 @@ const SNIPPETS = [
   },
   {
     repo: "rust-lang/rust", lang: "Rust", color: "#dea584", file: "sum.rs",
-    code: `fn checked_sum(nums: &[i32]) -> Option<i32> {\n    nums.iter().try_fold(0, |acc, &x| {\n        acc.checked_add(x)\n    })\n}`
+    code: `fn checked_sum(nums: &[i32]) -> Option<i32> {\n    nums.iter().try_fold(0, |acc, &x| {\n        ans.checked_add(x)\n    })\n}`
   },
   {
     repo: "golang/go", lang: "Go", color: "#00ADD8", file: "worker.go",
@@ -85,7 +85,7 @@ const SNIPPETS = [
   },
   {
     repo: "expressjs/express", lang: "JavaScript", color: "#f1e05a", file: "logger.js",
-    code: `function logger(req, res, next) {\n  const start = Date.now();\n  res.on('finish', () => {\n    console.log(\`\${req.method} \${req.url} \${Date.now() - start}ms\`);\n  });\n  next();\n}`
+    code: `function logger(req, res, next) {\n  const start = Date.now();\n  res.on('finish', () => {\n    console.log(\`${req.method} ${req.url} ${Date.now() - start}ms\`);\n  });\n  next();\n}`
   },
   {
     repo: "django/django", lang: "Python", color: "#3572A5", file: "middleware.py",
@@ -375,7 +375,23 @@ function isSafeStartLine(line){
   return !CONTINUATION_START.test(t);
 }
 
-function extractSnippetFromText(text){
+function removeCommentsFromCode(text){
+          const lines = text.split('\n');
+          // Remove trailing empty lines
+          while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+          const flags = computeCommentFlags(lines);
+
+          const cleanedLines = [];
+          for (let i = 0; i < lines.length; i++){
+            if (flags[i]) continue; // drop comment-only lines
+            cleanedLines.push(stripInlineComment(lines[i]));
+          }
+          // Remove trailing empty lines again because stripInlineComment might make a line empty
+          while (cleanedLines.length && cleanedLines[cleanedLines.length - 1].trim() === '') cleanedLines.pop();
+          return cleanedLines.join('\n');
+        }
+
+        function extractSnippetFromText(text){
   const lines = text.split('\n');
   while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
   const flags = computeCommentFlags(lines);
@@ -523,8 +539,9 @@ async function nextSnippet(){
 }
 
 function loadSnippet(snippet){
+  const cleanedCode = removeCommentsFromCode(snippet.code);
   current = snippet;
-  chars = Array.from(snippet.code);
+  chars = Array.from(cleanedCode);
   states = new Array(chars.length).fill('untyped');
   idx = 0;
   startTime = null;
@@ -537,7 +554,7 @@ function loadSnippet(snippet){
   document.getElementById('tabFileName').textContent = snippet.file;
   document.getElementById('tabLangDot').style.background = snippet.color;
 
-  const lineCount = snippet.code.split('\n').length;
+  const lineCount = cleanedCode.split('\n').length;
   lineNumbers.textContent = Array.from({length: lineCount}, (_, i) => i + 1).join('\n');
 
   overlay.querySelector('span').textContent = 'click to focus, then start typing';
@@ -635,8 +652,8 @@ function handleKey(e){
 
     if (e.ctrlKey || e.metaKey || e.altKey){
       let newIdx = idx;
-      while (newIdx > 0 && /\s/.test(chars[newIdx - 1])) newIdx--;
-      while (newIdx > 0 && /\w/.test(chars[newIdx - 1])) newIdx--;
+      while (newIdx > 0 && /\s/.test(chars[newIndex - 1])) newIdx--;
+      while (newIdx > 0 && /\w/.test(chars[newIndex - 1])) newIdx--;
       for (let i = newIdx; i < idx; i++) states[i] = 'untyped';
       idx = newIdx;
     } else {
